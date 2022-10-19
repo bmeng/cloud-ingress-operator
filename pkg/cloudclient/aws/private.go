@@ -73,8 +73,11 @@ func removeAWSLBFromMasterMachines(kclient k8s.Client, elbName string, masterNod
 			return err
 		}
 		lbList := providerSpecDecoded.LoadBalancers
+		fmt.Println(lbList)
 		newLBList := []awsproviderapi.LoadBalancerReference{}
+
 		for _, lb := range lbList {
+			fmt.Println(lb)
 			if lb.Name != elbName {
 				log.Info("Machine's LB does not match LB to remove", "Machine LB", lb.Name, "LB to remove", elbName)
 				log.Info("Keeping machine's LB in machine object", "LB", lb.Name, "Machine", machine.Name)
@@ -99,8 +102,11 @@ func getAWSDecodedProviderSpec(machine machineapi.Machine) (*awsproviderapi.AWSM
 		log.Error(err, "Error creating AWSProviderConfigCodec")
 		return nil, err
 	}
+
 	providerSpecEncoded := machine.Spec.ProviderSpec
+	fmt.Println(providerSpecEncoded)
 	providerSpecDecoded := &awsproviderapi.AWSMachineProviderConfig{}
+	fmt.Println(providerSpecDecoded)
 	err = awsCodec.DecodeProviderSpec(&providerSpecEncoded, providerSpecDecoded)
 	if err != nil {
 		log.Error(err, "Error decoding provider spec for machine", "machine", machine.Name)

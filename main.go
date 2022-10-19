@@ -20,14 +20,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/operator-framework/operator-lib/leader"
-	"k8s.io/apimachinery/pkg/runtime"
-	"net/http"
-	"os"
-	awsproviderapi "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsproviderconfig/v1beta1"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"strings"
-
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cloud-ingress-operator/config"
 	"github.com/openshift/cloud-ingress-operator/pkg/cloudclient"
@@ -36,19 +28,27 @@ import (
 	baseutils "github.com/openshift/cloud-ingress-operator/pkg/utils"
 	machineapi "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	osdmetrics "github.com/openshift/operator-custom-metrics/pkg/metrics"
+	"github.com/operator-framework/operator-lib/leader"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"net/http"
+	"os"
+	awsproviderapi "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsproviderconfig/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	runtimescheme "sigs.k8s.io/controller-runtime/pkg/scheme"
+	"strings"
 
+	apiv1alpha1 "github.com/openshift/cloud-ingress-operator/api/v1alpha1"
+	apischemecontroller "github.com/openshift/cloud-ingress-operator/controllers/apischeme"
+	publishingstrategycontroller "github.com/openshift/cloud-ingress-operator/controllers/publishingstrategy"
+	routerservicecontroller "github.com/openshift/cloud-ingress-operator/controllers/routerservice"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	apiv1alpha1 "github.com/openshift/cloud-ingress-operator/api/v1alpha1"
-	apischemecontroller "github.com/openshift/cloud-ingress-operator/controllers/apischeme"
-	publishingstrategycontroller "github.com/openshift/cloud-ingress-operator/controllers/publishingstrategy"
-	routerservicecontroller "github.com/openshift/cloud-ingress-operator/controllers/routerservice"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -69,7 +69,6 @@ func init() {
 	utilruntime.Must(machineapi.AddToScheme(scheme))
 	utilruntime.Must(ingresscontroller.AddToScheme(scheme))
 	utilruntime.Must(monitoringv1.AddToScheme(scheme))
-	utilruntime.Must(awsproviderapi.SchemeBuilder.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -126,6 +125,14 @@ func main() {
 	// Setup Global Variables
 	cli := mgr.GetClient()
 	if err := baseutils.SetClusterVersion(cli); err != nil {
+		setupLog.Error(err, "")
+		os.Exit(1)
+	}
+
+	// Register the machine.openshift.io type
+	schemeBuilder := &runtimescheme.Builder{GroupVersion: schema.GroupVersion{Group: "machine.openshift.io", Version: "v1beta1"}}
+	schemeBuilder.Register(&awsproviderapi.AWSMachineProviderConfig{})
+	if err := schemeBuilder.AddToScheme(mgr.GetScheme()); err != nil {
 		setupLog.Error(err, "")
 		os.Exit(1)
 	}
